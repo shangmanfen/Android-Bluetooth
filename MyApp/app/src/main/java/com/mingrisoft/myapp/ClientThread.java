@@ -32,7 +32,6 @@ public class ClientThread extends Thread {
     public void run(){
         System.out.println("connectedThread.run()");
         byte[] buf;
-
         while(!isStop){
             size=0;
             buf=new byte[4096];
@@ -67,8 +66,6 @@ public class ClientThread extends Thread {
         handler.sendMessage(msg);
     }
 
-
-
  public void write(byte[] buf){
           try {
               os=socket.getOutputStream();
@@ -77,15 +74,12 @@ public class ClientThread extends Thread {
               // TODO Auto-generated catch block
               e.printStackTrace();
           }
-
           System.out.println(buf.length+"---");
           sendMessageToHandler1(buf, SEND_MSG);
       }
 
   private void sendMessageToHandler1(byte[] buf,int mode){//将发送的数据传输到mainActivity中
-
         String msgStr=new String(buf);//接收到的数据以ascii码显示
-
         Bundle bundle=new Bundle();
         bundle.putString("str", msgStr);
         Message msg=new Message();
@@ -100,12 +94,9 @@ public class ClientThread extends Thread {
             String hex=Integer.toHexString(b[i]&0xFF);
             if(hex.length()==1){
                 hex='0'+hex;
-
             }
             ret+=hex.toUpperCase();
-
         }
-
         return ret;
 
     }

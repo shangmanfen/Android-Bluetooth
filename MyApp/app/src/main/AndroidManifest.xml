@@ -16,15 +16,21 @@
         android:theme="@style/AppTheme">
         <activity
             android:name=".StartActivity"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            android:theme="@style/FullscreenTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".MainActivity" />
-        <activity android:name=".Lanyakongzhi"></activity>
+        <activity android:name=".MainActivity"
+            android:theme="@style/FullscreenTheme"/>
+        <activity android:name=".Lanyakongzhi" />
+        <activity
+            android:name=".dialog"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:label="@string/title_activity_dialog"
+            android:theme="@style/FullscreenTheme"></activity>
     </application>
 
 </manifest>

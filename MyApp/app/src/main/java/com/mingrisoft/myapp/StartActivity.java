@@ -24,8 +24,8 @@ public class StartActivity extends Activity {
         TimerTask timerTask=new TimerTask() {
             @Override
             public void run() {
-
                 startActivity(new Intent(StartActivity.this,MainActivity.class));
+                StartActivity.this.finish();
             }
         };timer.schedule(timerTask,1200);
 
