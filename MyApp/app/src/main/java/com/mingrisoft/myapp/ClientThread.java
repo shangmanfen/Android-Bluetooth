@@ -34,7 +34,7 @@ public class ClientThread extends Thread {
         byte[] buf;
         while(!isStop){
             size=0;
-            buf=new byte[4096];
+            buf=new byte[2048];
             try {
                 is=socket.getInputStream();
                 System.out.println("等待数据");
@@ -55,8 +55,8 @@ public class ClientThread extends Thread {
 
     private void sendMessageToHandler(byte[] buf,int mode){//将接收到的数据传输到mainActivity中
 
-        //String msgStr=new String(buf);//接收到的数据以ascii码显示
-        String msgStr=bytes2HexString(buf,size);//接收到的数据以16进制数显示
+        String msgStr=new String(buf);//接收到的数据以ascii码显示
+        //String msgStr=bytes2HexString(buf,size);//接收到的数据以16进制数显示
 
         Bundle bundle=new Bundle();
         bundle.putString("str", msgStr);

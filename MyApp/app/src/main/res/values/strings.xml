@@ -6,4 +6,6 @@
     <string name="dummy_content">DUMMY\nCONTENT</string>
 
     <string name="title_activity_dialog">dialog</string>
+
+    <string name="title_activity_map">Map</string>
 </resources>

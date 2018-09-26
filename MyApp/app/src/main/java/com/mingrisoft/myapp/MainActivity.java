@@ -1,6 +1,5 @@
 package com.mingrisoft.myapp;
 
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -13,6 +12,7 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -27,7 +27,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.preference.PreferenceManager;
 import android.support.v4.app.ActivityCompat;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -37,38 +39,23 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity implements AdapterView.OnItemClickListener {
-    // 获取到蓝牙适配器
-    private BluetoothAdapter mBluetoothAdapter;
-    // 用来保存搜索到的设备信息
-    private List<String> bluetoothDevices = new ArrayList<String>();
-    // ListView组件
+    private SharedPreferences pref;private SharedPreferences.Editor editor;
+    private BluetoothAdapter mBluetoothAdapter;  // 获取到蓝牙适配器
+    private List<String> bluetoothDevices = new ArrayList<String>();// 用来保存搜索到的设备信息
     private ListView lvDevices;
-    // ListView的字符串数组适配器
-    private ArrayAdapter<String> arrayAdapter;
-    // UUID，蓝牙建立链接需要的
-    private final UUID MY_UUID = UUID
-            .fromString("00001101-0000-1000-8000-00805F9B34FB");
-    // 为其链接创建一个名称
-    private final String NAME = "Bluetooth_Socket";
-    // 选中发送数据的蓝牙设备，全局变量，否则连接在方法执行完就结束了
-    private BluetoothDevice selectDevice;
-    // 获取到选中设备的客户端串口，全局变量，否则连接在方法执行完就结束了
-    public BluetoothSocket clientSocket;
-    // 获取到向设备写的输出流，全局变量，否则连接在方法执行完就结束了
-    private BluetoothServerSocket serverSocket;// 服务端接口
-    // 服务端利用线程不断接受客户端信息
-    //private ServerThread thread;
-    public Context context;
+    private ArrayAdapter<String> arrayAdapter;// ListView的字符串数组适配器
+    private final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");  // UUID，蓝牙建立链接需要的
+    private BluetoothDevice selectDevice;// 选中发送数据的蓝牙设备
+    public BluetoothSocket clientSocket;// 获取到选中设备的客户端串口
+    ClientThread clientThread;// 服务端利用线程不断接受客户端信息
+    public Context context; View view11;
     public static MainActivity instance2 = null;
-    Button forward,back,stop;
-    Button left,right;
-    private InputStream is;// 获取到输入流
+    TextView press,temp,pulse,location;boolean IsPaired=false;
     private OutputStream os;// 获取到输出流
-    ClientThread clientThread;
-    View view11;
     private long firstTime=0;  //记录第几次点击返回
     @Override
     public void onBackPressed() {
@@ -81,7 +68,6 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             System.exit(0);
         }
     }
-
     private void requestPermission() {
         if (Build.VERSION.SDK_INT >= 23) {
             int checkAccessFinePermission = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
@@ -115,7 +101,8 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         setContentView(R.layout.activity_main);
         requestPermission();
         context = getApplicationContext();
-        instance2 = this;
+        instance2 = this;pref= PreferenceManager.getDefaultSharedPreferences(this);editor=pref.edit();
+        press=findViewById(R.id.press);pulse=findViewById(R.id.pulse);temp=findViewById(R.id.temp);location=findViewById(R.id.location);
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();// 获取到蓝牙默认的适配器
         LayoutInflater inflater = getLayoutInflater();
         view11 = inflater.inflate(R.layout.activity_dialog, null);
@@ -124,40 +111,55 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
         lvDevices.setAdapter(arrayAdapter);// 为listView绑定适配器
         lvDevices.setOnItemClickListener(this);
         mBluetoothAdapter.enable();
+        clientThread = new ClientThread(clientSocket, handler);
     }
     public  void SearchE(View v){
-        Toast.makeText(MainActivity.this,"正在搜索，请稍后...",Toast.LENGTH_SHORT).show();
-        mBluetoothAdapter.enable();
-    // 点击搜索周边设备，如果正在搜索，则暂停搜索
-        if (mBluetoothAdapter.isDiscovering()) {
-            mBluetoothAdapter.cancelDiscovery();
-        }
-        mBluetoothAdapter.startDiscovery();
-        Set<BluetoothDevice> devices = mBluetoothAdapter.getBondedDevices();// 用Set集合保持已绑定的设备
-        if (devices.size() > 0) {
-            for (BluetoothDevice bluetoothDevice : devices) {
-                // 保存到arrayList集合中
-                bluetoothDevices.add(bluetoothDevice.getName() + ":"+ bluetoothDevice.getAddress() + "\n");
-            }
-        }
-        // 因为蓝牙搜索到设备和完成搜索都是通过广播来告诉其他应用的// 这里注册找到设备和完成搜索广播
-        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        registerReceiver(receiver, filter);
-        filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(receiver, filter);
-        showdialog();
+        if(pairing())
+            IsPaired=true;
+        else
+            IsPaired=false;
     }
-    AlertDialog dialog;
+    private boolean pairing(){
+        try {
+            mBluetoothAdapter.enable();
+            // 点击搜索周边设备，如果正在搜索，则暂停搜索
+            if (mBluetoothAdapter.isDiscovering()) {
+                mBluetoothAdapter.cancelDiscovery();
+            }
+            mBluetoothAdapter.startDiscovery();
+            Set<BluetoothDevice> devices = mBluetoothAdapter.getBondedDevices();// 用Set集合保持已绑定的设备
+            if (devices.size() > 0) {
+                for (BluetoothDevice bluetoothDevice : devices) {
+                    // 保存到arrayList集合中
+                    bluetoothDevices.add(bluetoothDevice.getName() + ":"+ bluetoothDevice.getAddress() + "\n");
+                }
+            }
+            // 因为蓝牙搜索到设备和完成搜索都是通过广播来告诉其他应用的// 这里注册找到设备和完成搜索广播
+            IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+            registerReceiver(receiver, filter);
+            filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+            registerReceiver(receiver, filter);
+            showdialog();
+            return true;
+        }catch (Exception e){
+            return false;
+        }
+    }
+    AlertDialog dialog;AlertDialog.Builder builder;
     private void showdialog(){
-        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        if(dialog==null){
+            builder = new AlertDialog.Builder(MainActivity.this);
         //builder.setIcon(R.drawable.logo);
         //builder.setTitle("选择设备");
-        builder.setView(view11);
-        dialog=builder.show();
+            builder.setView(view11);
+            dialog=builder.show();
+        }
+        else
+            dialog.show();
     }
-    // 点击listView中的设备进行配对
-    @Override
+    @Override    // 点击listView中的设备进行配对
     public void onItemClick(AdapterView<?> parent, View view, int position,long id) {
+        Toast.makeText(MainActivity.this,"正在配对，请稍后",Toast.LENGTH_SHORT).show();
         // 获取到这个设备的信息
         String s = arrayAdapter.getItem(position);
         // 对其进行分割，获取到这个设备的地址
@@ -167,39 +169,89 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             mBluetoothAdapter.cancelDiscovery();
         }
         selectDevice = mBluetoothAdapter.getRemoteDevice(address);//通过地址获取到该设备
-        Toast.makeText(this, "已连接" + selectDevice.getName(), Toast.LENGTH_SHORT).show();
-        dialog.dismiss();
-    }
-    private void SendMessage(String a){
-        try {
+        try{
             clientSocket = selectDevice.createRfcommSocketToServiceRecord(MY_UUID);// 获取到客户端接口
             clientSocket.connect();// 向服务端发送连接
+        }catch (Exception e){}
+        Toast.makeText(this, "已连接" + selectDevice.getName(), Toast.LENGTH_SHORT).show();
+        dialog.dismiss();
+        Button startAccept=findViewById(R.id.startAccept);startAccept.setVisibility(View.VISIBLE);
+        Button button=findViewById(R.id.button);button.setVisibility(View.GONE);
+    }
+    private boolean SendMessage(String a){
+        if(IsPaired){
+        try {
             os = clientSocket.getOutputStream(); // 获取到输出流，向外写数据
             if (os != null) {
                 try {
                     String text = a;
-                    os.write(text.getBytes("UTF-8"));// 以utf-8的格式发送出去
+                    byte[] buf=text.getBytes();
+                    os.write(text.getBytes());
                 } catch (IOException e) {
-                    throw e;
+                    IsPaired=false;
+                    Toast.makeText(this, "蓝牙连接中断,请重新配对", Toast.LENGTH_SHORT).show();
+                    return false;
                 }
             }
+            return true;
         } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            Toast.makeText(this, "发送信息失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "要与拐杖配对哦！", Toast.LENGTH_SHORT).show();
+           return false;
+        } }else{
+            Toast.makeText(this, "要与拐杖配对哦！", Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
-    private void AcceptMessage(){
-        clientThread = new ClientThread(clientSocket, handler);
-        clientThread.start();
+    public void GetData(View v){
+        if(SendMessage("A")) {
+            try {
+                clientThread.start();
+            } catch (Exception e) {
+                Toast.makeText(MainActivity.this, "接收异常！", Toast.LENGTH_SHORT).show();
+            }
+            if (flag == 1) {
+                String a = chatStr.substring(0, 3) + "/" + chatStr.substring(3, 5);
+                press.setText(a);
+                a = chatStr.substring(5, 7);
+                pulse.setText(a);
+                a = chatStr.substring(7, 11);
+                temp.setText(a);
+            }
+        }else showdialog();
     }
+    public void GetGPS(View v){
+        if(SendMessage("B")){
+            try {
+                clientThread.start();
+            }catch (Exception e){Toast.makeText(MainActivity.this,"接收异常！",Toast.LENGTH_SHORT).show();}
+            if(flag==2){
+                String longitude=chatStr.substring(0,10);
+                String latitude=chatStr.substring(10,19);
+                Float lon=convertToFloat(longitude,0);
+                Float la=convertToFloat(latitude,0);
+                location.setText("经度："+longitude+" \n纬度："+latitude);
+                editor.putFloat("longitude",lon);
+                editor.putFloat("latitude",la);
+                editor.commit();
+                startActivity(new Intent(MainActivity.this,Map.class));
+            }
+        }
+        else showdialog();
+    }
+    String chatStr="";int flag=0;
     Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             // TODO Auto-generated method stub
             super.handleMessage(msg);
-            String chatStr = msg.getData().getString("str");//接收数据
-            Toast.makeText(MainActivity.this, chatStr, Toast.LENGTH_SHORT).show();
+            chatStr = chatStr+msg.getData().getString("str");//接收数据
+            chatStr=chatStr.trim();
+            if(chatStr.length()>=10&chatStr.length()<=18)
+                flag=1;
+            else if(chatStr.length()>=19)
+                flag=2;
+            else flag=0;
+            Toast.makeText(MainActivity.this, chatStr.trim(), Toast.LENGTH_SHORT).show();
             handler.removeCallbacks(clientThread);
         }
     };
@@ -222,4 +274,18 @@ public class MainActivity extends Activity implements AdapterView.OnItemClickLis
             }
         }
     };
+    //把String转化为float
+    public static float convertToFloat(String number, float defaultValue)
+    {
+        if (TextUtils.isEmpty(number))
+        {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(number);
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
 }
